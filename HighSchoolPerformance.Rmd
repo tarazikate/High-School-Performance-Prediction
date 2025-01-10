@@ -1,0 +1,595 @@
+---
+title: "High School Performance Prediction"
+date: "December 11, 2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## SECTION 1: Data preprocessing and initial ANOVA to separate the 2 populations
+
+Get the Portuguese grades dataset from the school CSV files.
+
+```{r data}
+df1 = read.csv("student-por.csv", sep=";")
+```
+
+Extract the target variable from the dataframe and separate into 2 populations.
+
+```{r preprocessing}
+target = df1[,"G3"]
+target_population1 = target[which(df1[,"school"] == "GP")]
+target_population2 = target[which(df1[,"school"] != "GP")]
+```
+
+Perform a 2 population hypothesis test. $H_0: \mu_1 - \mu_2 = 0. H_A: \mu_1 - \mu_2 \ne 0$.\
+
+```{r}
+mu_1 = mean(target_population1)
+sd_1 = sd(target_population1)
+n1 = length(target_population1)
+
+mu_2 = mean(target_population2)
+sd_2 = sd(target_population2)
+n2 = length(target_population2)
+
+test_statistic = (mu_1-mu_2)/sqrt(sd_1^2/n1+sd_2^2/n2)
+p_value = 2*(1-pnorm(test_statistic)); p_value
+```
+
+Perform ANOVA on the target variable
+```{r}
+school_labels = c(rep(1, n1), rep(2, n2))
+joined_targets = c(target_population1, target_population2)
+fit = aov(joined_targets ~ school_labels)
+summary(fit)
+```
+
+Continue to preprocess the data.
+```{r}
+#Convert all categorical (non-integer) variables to factors except for the school
+df1[,"sex"] = as.factor(df1[,"sex"])
+df1[,"address"] = as.factor(df1[,"address"])
+df1[,"famsize"] = as.factor(df1[,"famsize"])
+df1[,"Pstatus"] = as.factor(df1[,"Pstatus"]) 
+df1[,"reason"] = as.factor(df1[,"reason"])
+df1[,"schoolsup"] = as.factor(df1[,"schoolsup"])
+df1[,"famsup"] = as.factor(df1[,"famsup"])
+df1[,"paid"] = as.factor(df1[,"paid"])
+df1[,"activities"] = as.factor(df1[,"activities"])
+df1[,"nursery"] = as.factor(df1[,"nursery"])
+df1[,"higher"] = as.factor(df1[,"higher"])
+df1[,"internet"] = as.factor(df1[,"internet"])
+df1[,"romantic"] = as.factor(df1[,"romantic"])
+
+# Convert multi-category variables to binary
+df1[,"Mjob"] = ifelse(df1[,"Mjob"] == "at_home", 0, 1) # 0 if unemployed
+df1[,"Fjob"] = ifelse(df1[,"Fjob"] == "at_home", 0, 1) # 0 if unemployed
+df1[,"guardian"] = ifelse(df1[,"guardian"] == "other", 0, 1) # 0 if guardian is not a parent
+
+
+# Convert target variable to binary 0 (fail 0-10) or 1 (pass 11-20)
+df1[,"G3"] = ifelse((df1[,"G3"] >= 0 & df1[,"G3"] <= 10), 0, 1)
+df1[,"G3"] = as.factor(df1[,"G3"])
+
+
+```
+
+Extract the 2 populations into separate dataframes and drop the school column.
+```{r}
+population1 = df1[which(df1[,"school"] == "GP"),]
+population1 = subset(population1, select=-school)
+population2 = df1[which(df1[,"school"] != "GP"),]
+population2 = subset(population2, select=-school)
+```
+
+## Section 2: statistical analysis with ANOVA on the 2 separate schools
+```{r}
+df1 = read.csv("student-por.csv", sep=";")
+df1[,"sex"] = as.factor(df1[,"sex"])
+df1[,"address"] = as.factor(df1[,"address"])
+df1[,"famsize"] = as.factor(df1[,"famsize"])
+df1[,"Pstatus"] = as.factor(df1[,"Pstatus"])
+df1[,"Mjob"] = as.factor(df1[,"Mjob"])
+df1[,"Fjob"] = as.factor(df1[,"Fjob"])
+df1[,"reason"] = as.factor(df1[,"reason"])
+df1[,"guardian"] = as.factor(df1[,"guardian"])
+df1[,"schoolsup"] = as.factor(df1[,"schoolsup"])
+df1[,"famsup"] = as.factor(df1[,"famsup"])
+df1[,"paid"] = as.factor(df1[,"paid"])
+df1[,"activities"] = as.factor(df1[,"activities"])
+df1[,"nursery"] = as.factor(df1[,"nursery"])
+df1[,"higher"] = as.factor(df1[,"higher"])
+df1[,"internet"] = as.factor(df1[,"internet"])
+df1[,"romantic"] = as.factor(df1[,"romantic"])
+
+
+school_GP <- df1[df1$school == "GP", ]  
+school_MS <- df1[df1$school == "MS", ] 
+
+school_GP$school <- as.factor(school_GP$school)
+school_MS$school <- as.factor(school_MS$school)
+
+fit_anova_GP <- aov(G3 ~ famsize + Pstatus + sex + Mjob + Fjob + address + activities + schoolsup +
+                     famsup + paid + higher + internet + romantic + guardian, data = school_GP)
+summary(fit_anova_GP)
+
+fit_anova_MS <- aov(G3 ~ famsize + Pstatus + sex + Mjob + Fjob + address + activities + schoolsup +
+                     famsup + paid + higher + internet + romantic + guardian, data = school_MS)
+summary(fit_anova_MS)
+
+```
+Statistically significant predictors of academic performance at GP school:
+- sex
+- Mjob
+- Fjob
+- activities
+- schoolsup
+- higher
+
+Statistically significant predictors of academic performance at MS school:
+- famsize
+- sex
+- higher
+
+The overlapping significant predictors between the two schools are sex and higher
+
+To show how variables differ, we can use boxplots:
+
+## Graphs to show differences in predictors
+```{r}
+#boxplot of sex vs academic performance for diff schools
+
+# Boxplot for school_GP
+boxplot(G3 ~ sex, data = school_GP, main = "Academic Performance (G3) vs Sex in GP School",
+        xlab = "Sex", ylab = "Final Grade (G3)")
+
+# Boxplot for school_MS
+boxplot(G3 ~ sex, data = school_MS, main = "Academic Performance (G3) vs Sex in MS School",
+        xlab = "Sex", ylab = "Final Grade (G3)")
+
+```
+
+```{r}
+#boxplot of higher vs academic performance for diff schools
+
+# Boxplot for school_GP
+boxplot(G3 ~ higher, data = school_GP, main = "Academic Performance (G3) vs Higher Education in GP School",
+        xlab = "Higher", ylab = "Final Grade (G3)")
+
+# Boxplot for school_MS
+boxplot(G3 ~ higher, data = school_MS, main = "Academic Performance (G3) vs Higher Education in MS School",
+        xlab = "Higher", ylab = "Final Grade (G3)")
+```
+
+```{r}
+means <- tapply(df1$G3, df1$school, mean) 
+means
+barplot(means,
+        main = "Mean Academic Performance (G3) by School", 
+        xlab = "School", 
+        ylab = "Mean Final Grade (G3)",
+        beside = TRUE,
+        col="blue")
+```
+
+```{r}
+fit_anova_GP_inter <- aov(G3 ~ sex*higher, data = school_GP)
+summary(fit_anova_GP_inter)
+
+fit_anova_MS_inter <- aov(G3 ~ sex*higher, data = school_MS)
+summary(fit_anova_MS_inter)
+
+```
+
+## SECTION 2: Machine learning models for the GP school
+Split into training and test sets (80% to 20% ratio) for the first school.
+```{r}
+set.seed(42)
+training_indices = sample(1:nrow(population1), ceiling(0.8*nrow(population1)))
+train_population1 = population1[training_indices,]
+test_population1 = population1[-training_indices,]
+```
+
+## SECTION 2.1: Train a logistic regression model for the first school and test its performance. Attempt fine-tuning.
+```{r}
+set.seed(42)
+logit_model = glm(G3 ~. -G1-G2, data=train_population1, family=binomial)
+logit_pred = predict(logit_model, test_population1)
+logit_pred = ifelse(logit_pred > 0.5, 1, 0)
+conf_matrix_lr = table(logit_pred, test_population1[,"G3"]); conf_matrix_lr
+accuracy_lr = sum(diag(conf_matrix_lr)) / sum(conf_matrix_lr); accuracy_lr
+```
+Check for significant coefficients.
+```{r}
+library(caret)
+library(dplyr)
+var_imp_lr = varImp(logit_model, scale=T)
+var_imp_lr <- var_imp_lr %>% arrange(desc(Overall)); var_imp_lr
+coefficients_lr = summary(logit_model)$coefficients
+significant_coefficients <- coefficients_lr[coefficients_lr[, 4] < 0.1, ]; significant_coefficients
+```
+
+Perform 10-fold cross-validation.
+```{r}
+set.seed(42)
+train_control <- trainControl(method = "cv", number = 10)
+cv_logit_model = train(G3 ~. -G1-G2, data=train_population1, trControl = train_control, method="glm",family="binomial")
+cv_logit_pred = predict(cv_logit_model, test_population1, type = "prob")
+cv_logit_pred = ifelse(cv_logit_pred[,2] > 0.5, 1, 0)
+conf_matrix_lr_cv = table(cv_logit_pred, test_population1[,"G3"]); conf_matrix_lr_cv
+accuracy_lr_cv = sum(diag(conf_matrix_lr_cv)) / sum(conf_matrix_lr_cv); accuracy_lr_cv
+```
+Do gridsearch on lambda values.
+```{r}
+set.seed(42)
+tune_grid <- expand.grid(alpha = 1, lambda = seq(0.001, 0.1, by = 0.001))
+cv_grid <- train(G3 ~. -G1-G2, data=train_population1,
+                  method = "glmnet", family = "binomial",
+                  trControl = train_control, tuneGrid = tune_grid)
+cv_grid_pred = predict(cv_grid, test_population1, type = "prob")
+cv_grid_pred = ifelse(cv_grid_pred[,2] > 0.5, 1, 0)
+conf_matrix_grid_cv = table(cv_grid_pred, test_population1[,"G3"]); conf_matrix_grid_cv
+accuracy_grid_cv = sum(diag(conf_matrix_grid_cv)) / sum(conf_matrix_grid_cv); accuracy_grid_cv
+```
+
+Check performance with G1 and G2 included. Notice that this creates complete separation via the warning message. Thus, we will not continue with these variables included.
+```{r}
+set.seed(42)
+logit_model = glm(G3 ~., data=train_population1, family=binomial)
+logit_pred = predict(logit_model, test_population1)
+logit_pred = ifelse(logit_pred > 0.5, 1, 0)
+conf_matrix_lr = table(logit_pred, test_population1[,"G3"]); conf_matrix_lr
+accuracy_lr = sum(diag(conf_matrix_lr)) / sum(conf_matrix_lr); accuracy_lr
+
+var_imp_lr = varImp(logit_model, scale=T)
+var_imp_lr <- var_imp_lr %>% arrange(desc(Overall)); var_imp_lr
+coefficients_lr = summary(logit_model)$coefficients
+significant_coefficients <- coefficients_lr[coefficients_lr[, 4] < 0.1, ]; significant_coefficients
+```
+## SECTION 2.2: Train tree models for the GP school
+Train a decision tree (not sure why the above is not working)
+```{r}
+library(ISLR2)
+library(tree)
+set.seed(42)
+tree_pop1 = tree(G3 ~. -G1-G2, data=train_population1)
+plot(tree_pop1)
+text(tree_pop1, cex=0.5)
+```
+Check the error of the decision tree.
+```{r}
+tree_pred_pop1 = predict(tree_pop1, test_population1, type="class")
+conf_matrix_dt = table(tree_pred_pop1, test_population1[,"G3"]); conf_matrix_dt
+accuracy_dt = sum(diag(conf_matrix_dt)) / sum(conf_matrix_dt); accuracy_dt
+```
+
+Train a random forest without G1 and G2.
+```{r}
+library(randomForest)
+set.seed(42)
+rf_pop1 <- randomForest(G3 ~ .-G1-G2, data = train_population1, importance = TRUE)
+rf_pred_pop1 = predict(rf_pop1, test_population1, type="class")
+conf_matrix_rf = table(rf_pred_pop1, test_population1[,"G3"]); conf_matrix_rf
+accuracy_rf = sum(diag(conf_matrix_rf)) / sum(conf_matrix_rf); accuracy_rf
+importance(rf_pop1)
+var_imp_rf = varImp(rf_pop1, scale=T)
+var_imp_rf <- var_imp_rf %>% arrange(desc(var_imp_rf[,2])); var_imp_rf
+```
+
+Fine-tune the RF without G1 and G2
+```{r}
+train_control <- trainControl(
+  method = "cv",
+  number = 5
+)
+set.seed(42)
+rf_pop1 <- train(
+  G3 ~ .-G1-G2, 
+  data = train_population1, 
+  method = "rf", 
+  trControl = train_control, 
+)
+rf_pred_pop1 = predict(rf_pop1, test_population1, type="raw")
+conf_matrix_rf = table(rf_pred_pop1, test_population1[,"G3"]); conf_matrix_rf
+accuracy_rf = sum(diag(conf_matrix_rf)) / sum(conf_matrix_rf); accuracy_rf
+
+var_imp_rf = varImp(rf_pop1)$importance
+var_imp_rf <- var_imp_rf %>% arrange(desc(Overall)); var_imp_rf
+```
+
+Lastly, boosting.
+```{r}
+library(gbm)
+set.seed(42)
+boost.model = gbm(as.integer(G3)-1~.-G1-G2, data = train_population1, distribution = "bernoulli", n.trees = 500, verbose = F)
+boost.pred = predict(boost.model, newdata = test_population1, n.trees=500)
+boost.pred = ifelse(boost.pred > 0, 1, 0)
+conf_matrix_boost = table(boost.pred, test_population1[,"G3"]); conf_matrix_boost
+accuracy_boost = sum(diag(conf_matrix_boost)) / sum(conf_matrix_boost); accuracy_boost
+
+summary(boost.model)
+```
+
+## SECTION 3: Machine learning models for the MS school
+Split into training and test sets (80% to 20% ratio) for the second school.
+```{r}
+set.seed(42)
+training_indices = sample(1:nrow(population2), ceiling(0.8*nrow(population2)))
+train_population1 = population2[training_indices,]
+test_population1 = population2[-training_indices,]
+```
+
+## SECTION 2.1: Train a logistic regression model for the first school and test its performance. Attempt fine-tuning.
+```{r}
+set.seed(42)
+logit_model = glm(G3 ~. -G1-G2, data=train_population1, family=binomial)
+logit_pred = predict(logit_model, test_population1)
+logit_pred = ifelse(logit_pred > 0.5, 1, 0)
+conf_matrix_lr = table(logit_pred, test_population1[,"G3"]); conf_matrix_lr
+accuracy_lr = sum(diag(conf_matrix_lr)) / sum(conf_matrix_lr); accuracy_lr
+```
+Check for significant coefficients.
+```{r}
+library(caret)
+library(dplyr)
+var_imp_lr = varImp(logit_model, scale=T)
+var_imp_lr <- var_imp_lr %>% arrange(desc(Overall)); var_imp_lr
+coefficients_lr = summary(logit_model)$coefficients
+significant_coefficients <- coefficients_lr[coefficients_lr[, 4] < 0.1, ]; significant_coefficients
+```
+
+Perform 10-fold cross-validation.
+```{r}
+set.seed(42)
+train_control <- trainControl(method = "cv", number = 10)
+cv_logit_model = train(G3 ~. -G1-G2, data=train_population1, trControl = train_control, method="glm",family="binomial")
+cv_logit_pred = predict(cv_logit_model, test_population1, type = "prob")
+cv_logit_pred = ifelse(cv_logit_pred[,2] > 0.5, 1, 0)
+conf_matrix_lr_cv = table(cv_logit_pred, test_population1[,"G3"]); conf_matrix_lr_cv
+accuracy_lr_cv = sum(diag(conf_matrix_lr_cv)) / sum(conf_matrix_lr_cv); accuracy_lr_cv
+```
+Do gridsearch on lambda values.
+```{r}
+set.seed(42)
+tune_grid <- expand.grid(alpha = 1, lambda = seq(0.001, 0.1, by = 0.001))
+cv_grid <- train(G3 ~. -G1-G2, data=train_population1,
+                  method = "glmnet", family = "binomial",
+                  trControl = train_control, tuneGrid = tune_grid)
+cv_grid_pred = predict(cv_grid, test_population1, type = "prob")
+cv_grid_pred = ifelse(cv_grid_pred[,2] > 0.5, 1, 0)
+conf_matrix_grid_cv = table(cv_grid_pred, test_population1[,"G3"]); conf_matrix_grid_cv
+accuracy_grid_cv = sum(diag(conf_matrix_grid_cv)) / sum(conf_matrix_grid_cv); accuracy_grid_cv
+```
+
+Check performance with G1 and G2 included. Notice that this creates complete separation via the warning message. Thus, we will not continue with these variables included.
+```{r}
+set.seed(42)
+logit_model = glm(G3 ~., data=train_population1, family=binomial)
+logit_pred = predict(logit_model, test_population1)
+logit_pred = ifelse(logit_pred > 0.5, 1, 0)
+conf_matrix_lr = table(logit_pred, test_population1[,"G3"]); conf_matrix_lr
+accuracy_lr = sum(diag(conf_matrix_lr)) / sum(conf_matrix_lr); accuracy_lr
+
+var_imp_lr = varImp(logit_model, scale=T)
+var_imp_lr <- var_imp_lr %>% arrange(desc(Overall)); var_imp_lr
+coefficients_lr = summary(logit_model)$coefficients
+significant_coefficients <- coefficients_lr[coefficients_lr[, 4] < 0.1, ]; significant_coefficients
+```
+## SECTION 2.2: Train tree models for the GP school
+Train a decision tree (not sure why the above is not working)
+```{r}
+library(ISLR2)
+library(tree)
+set.seed(42)
+tree_pop1 = tree(G3 ~. -G1-G2, data=train_population1)
+plot(tree_pop1)
+text(tree_pop1, cex=0.5)
+```
+Check the error of the decision tree.
+```{r}
+tree_pred_pop1 = predict(tree_pop1, test_population1, type="class")
+conf_matrix_dt = table(tree_pred_pop1, test_population1[,"G3"]); conf_matrix_dt
+accuracy_dt = sum(diag(conf_matrix_dt)) / sum(conf_matrix_dt); accuracy_dt
+```
+
+Train a random forest without G1 and G2.
+```{r}
+library(randomForest)
+set.seed(42)
+rf_pop1 <- randomForest(G3 ~ .-G1-G2, data = train_population1, importance = TRUE)
+rf_pred_pop1 = predict(rf_pop1, test_population1, type="class")
+conf_matrix_rf = table(rf_pred_pop1, test_population1[,"G3"]); conf_matrix_rf
+accuracy_rf = sum(diag(conf_matrix_rf)) / sum(conf_matrix_rf); accuracy_rf
+importance(rf_pop1)
+var_imp_rf = varImp(rf_pop1, scale=T)
+var_imp_rf <- var_imp_rf %>% arrange(desc(var_imp_rf[,2])); var_imp_rf
+```
+
+Fine-tune the RF without G1 and G2
+```{r}
+train_control <- trainControl(
+  method = "cv",
+  number = 5  
+)
+
+set.seed(42)
+rf_pop1 <- train(
+  G3 ~ .-G1-G2, 
+  data = train_population1, 
+  method = "rf", 
+  trControl = train_control, 
+)
+rf_pred_pop1 = predict(rf_pop1, test_population1, type="raw")
+conf_matrix_rf = table(rf_pred_pop1, test_population1[,"G3"]); conf_matrix_rf
+accuracy_rf = sum(diag(conf_matrix_rf)) / sum(conf_matrix_rf); accuracy_rf
+
+var_imp_rf = varImp(rf_pop1)$importance
+var_imp_rf <- var_imp_rf %>% arrange(desc(Overall)); var_imp_rf
+```
+
+Lastly, boosting.
+```{r}
+library(gbm)
+set.seed(42)
+boost.model = gbm(as.integer(G3)-1~.-G1-G2, data = train_population1, distribution = "bernoulli", n.trees = 500, verbose = F)
+boost.pred = predict(boost.model, newdata = test_population1, n.trees=500)
+boost.pred = ifelse(boost.pred > 0, 1, 0)
+conf_matrix_boost = table(boost.pred, test_population1[,"G3"]); conf_matrix_boost
+accuracy_boost = sum(diag(conf_matrix_boost)) / sum(conf_matrix_boost); accuracy_boost
+
+summary(boost.model)
+```
+## SECTION 4: Neural networks
+
+Preprocess data a bit differently
+```{r}
+df1 = read.csv("student-por.csv", sep=";")
+#Convert all categorical (non-integer) variables to factors except for the school
+df1[,"sex"] = as.integer(as.factor(df1[,"sex"]))-1
+df1[,"address"] = as.integer(as.factor(df1[,"address"]))-1
+df1[,"famsize"] = as.integer(as.factor(df1[,"famsize"]))-1
+df1[,"Pstatus"] = as.integer(as.factor(df1[,"Pstatus"]))-1
+df1[,"schoolsup"] = as.integer(as.factor(df1[,"schoolsup"]))-1
+df1[,"famsup"] = as.integer(as.factor(df1[,"famsup"]))-1
+df1[,"paid"] = as.integer(as.factor(df1[,"paid"]))-1
+df1[,"activities"] = as.integer(as.factor(df1[,"activities"]))-1
+df1[,"nursery"] = as.integer(as.factor(df1[,"nursery"]))-1
+df1[,"higher"] = as.integer(as.factor(df1[,"higher"]))-1
+df1[,"internet"] = as.integer(as.factor(df1[,"internet"]))-1
+df1[,"romantic"] = as.integer(as.factor(df1[,"romantic"]))-1
+
+# Convert multi-category variables to binary
+df1[,"Mjob"] = ifelse(df1[,"Mjob"] == "at_home", 0, 1) # 0 if unemployed
+df1[,"Fjob"] = ifelse(df1[,"Fjob"] == "at_home", 0, 1) # 0 if unemployed
+df1[,"guardian"] = ifelse(df1[,"guardian"] == "other", 0, 1) # 0 if guardian is not a parent
+df1[,"reason"] = ifelse(df1[,"reason"] == "home", 0, 1) # 0 if reason to choose school is it's because it's close to home
+
+
+# Convert target variable to binary 0 (fail 0-10) or 1 (pass 11-20)
+df1[,"G3"] = ifelse((df1[,"G3"] >= 0 & df1[,"G3"] <= 10), 0, 1)
+df1[,"G3"] = as.factor(df1[,"G3"])
+
+```
+
+Extract the 2 populations into separate dataframes and drop the school column.
+```{r}
+population1 = df1[which(df1[,"school"] == "GP"),]
+population1 = subset(population1, select=-school)
+population2 = df1[which(df1[,"school"] != "GP"),]
+population2 = subset(population2, select=-school)
+```
+Split into training and test sets (80% to 20% ratio) for the first school.
+```{r}
+set.seed(42)
+training_indices = sample(1:nrow(population1), ceiling(0.8*nrow(population1)))
+train_population1 = population1[training_indices,]
+test_population1 = population1[-training_indices,]
+```
+
+## SECTION 4.1: Neural networks for the first population
+
+Neural Network on all variables but G1 and G2
+```{r}
+library(neuralnet)
+
+set.seed(42)
+
+
+model <- neuralnet(
+  G3 ~. -G1-G2,
+  data = train_population1,
+  hidden = c(29, 16, 8, 4, 2),  
+  linear.output = FALSE
+)
+
+plot(model, rep = "best")
+
+pred <- predict(model, test_population1)
+pred <- ifelse(pred[, 2] > 0.5, 1, 0)
+
+conf_matrix <- table(test_population1$G3, pred)
+print(conf_matrix)
+
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+print(paste("Accuracy:", round(accuracy * 100, 2), "%"))
+
+
+```
+
+Neural network on sex and higher variables
+```{r}
+set.seed(42)
+
+
+model <- neuralnet(
+  G3 ~ sex + higher,
+  data = train_population1,
+  hidden = c(29, 16, 8, 4, 2),  
+  linear.output = FALSE
+)
+
+plot(model, rep = "best")
+
+pred <- predict(model, test_population1)
+pred <- ifelse(pred[, 2] > 0.5, 1, 0)
+
+conf_matrix <- table(test_population1$G3, pred)
+print(conf_matrix)
+
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+print(paste("Accuracy:", round(accuracy * 100, 2), "%"))
+
+```
+
+## SECTION 4.2: Neural networks for the second population
+
+Neural network on all variables but G1 and G2
+```{r}
+set.seed(42)
+
+training_indices <- sample(1:nrow(population2), ceiling(0.8 * nrow(population2)))
+train_population2 <- population2[training_indices, ]
+test_population2 <- population2[-training_indices, ]
+
+model2 <- neuralnet(
+  G3 ~. -G1-G2,
+  data = train_population2,
+  hidden = c(29, 16, 8, 4, 2),  
+  linear.output = FALSE
+)
+
+plot(model2, rep = "best")
+
+pred2 <- predict(model2, test_population2)
+pred2 <- ifelse(pred2[, 2] > 0.5, 1, 0)
+
+conf_matrix2 <- table(test_population2$G3, pred2)
+print(conf_matrix2)
+
+accuracy2 <- sum(diag(conf_matrix2)) / sum(conf_matrix2)
+print(paste("Accuracy for Population 2:", round(accuracy2 * 100, 2), "%"))
+```
+
+```{r}
+set.seed(42)
+model2 <- neuralnet(
+  G3 ~ sex + higher,
+  data = train_population2,
+  hidden = c(29, 16, 8, 4, 2),  
+  linear.output = FALSE
+)
+
+plot(model2, rep = "best")
+
+pred2 <- predict(model2, test_population2)
+pred2 <- ifelse(pred2[, 2] > 0.5, 1, 0)
+
+conf_matrix2 <- table(test_population2$G3, pred2)
+print(conf_matrix2)
+
+accuracy2 <- sum(diag(conf_matrix2)) / sum(conf_matrix2)
+print(paste("Accuracy for Population 2:", round(accuracy2 * 100, 2), "%"))
+```
